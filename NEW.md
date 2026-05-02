@@ -1,0 +1,9 @@
+### Lakers Acquire Damian Lillard From Bucks In Blockbuster Trade Deadline Move
+
+The Los Angeles Lakers completed a blockbuster trade Thursday at the NBA trade deadline, acquiring Milwaukee Bucks guard Damian Lillard in a three-team deal that also involved the Portland Trail Blazers, according to multiple league sources.
+
+Lillard, 35, comes to Los Angeles in exchange for D’Angelo Russell, Rui Hachimura, a 2026 first-round pick, and two second-round selections. Portland received salary-cap relief through expiring contracts from Milwaukee, completing the three-team framework. The move unites Lillard with LeBron James and Anthony Davis, forming one of the most experienced frontcourt-and-backcourt pairings in recent league memory. The Lakers enter the trade as 6th seeds in the Western Conference but believe the addition of Lillard — a seven-time All-Star — gives them true championship viability.
+
+“Dame fits what we’re trying to do,” Lakers general manager Rob Pelinka said. “He’s an elite shot creator, he takes pressure off LeBron and AD, and he knows how to win. That’s the profile we wanted.” Lillard, who was averaging 22.7 points and 7.4 assists for Milwaukee before the trade, had made his desire to compete for a championship known to Bucks management.
+
+Milwaukee’s willingness to move a franchise cornerstone signals the organization's acknowledgment that the Giannis Antetokounmpo-Lillard partnership has run its course. The Bucks remain committed to building around Antetokounmpo, but the path forward will involve new supporting pieces. For the Lakers, the trade represents a definitive all-in push, leveraging future assets to maximize the championship window with their veteran core.
