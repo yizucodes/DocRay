@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DocRay — Knowledge Rot Detector</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0b0f1a;
+    --surface:   #131825;
+    --surface2:  #1a2033;
+    --border:    #252d42;
+    --text:      #e2e8f0;
+    --text-dim:  #8892a8;
+    --accent:    #6c63ff;
+    --accent-g:  linear-gradient(135deg, #6c63ff, #4f46e5);
+    --green:     #22c55e;
+    --green-bg:  rgba(34,197,94,0.08);
+    --green-b:   rgba(34,197,94,0.25);
+    --yellow:    #eab308;
+    --yellow-bg: rgba(234,179,8,0.08);
+    --yellow-b:  rgba(234,179,8,0.25);
+    --red:       #ef4444;
+    --red-bg:    rgba(239,68,68,0.08);
+    --red-b:     rgba(239,68,68,0.25);
+    --radius:    10px;
+    --shadow:    0 4px 24px rgba(0,0,0,0.35);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Layout ───────────────────────────────────────────────────── */
+  .app {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 32px 120px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: var(--accent-g);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+  }
+
+  header .subtitle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .stats {
+    display: flex;
+    gap: 20px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .stats .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  .stats .dot.green  { background: var(--green); }
+  .stats .dot.yellow { background: var(--yellow); }
+  .stats .dot.red    { background: var(--red); }
+  .stats .dot.gray   { background: var(--text-dim); }
+
+  /* ── Section titles ───────────────────────────────────────────── */
+  .section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  /* ── Scan Bar ─────────────────────────────────────────────────── */
+  .scan-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .scan-bar button {
+    padding: 8px 20px;
+    background: var(--accent-g);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .scan-bar button:hover { opacity: 0.85; }
+  .scan-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .scan-progress {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .scan-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-g);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .scan-status {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    min-width: 110px;
+    text-align: right;
+  }
+
+  /* ── Card Grid ────────────────────────────────────────────────── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .card .card-status {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .card.green  .card-status { background: var(--green); }
+  .card.green  { border-color: var(--green-b); background: var(--green-bg); }
+  .card.yellow .card-status { background: var(--yellow); }
+  .card.yellow { border-color: var(--yellow-b); background: var(--yellow-bg); }
+  .card.red    .card-status { background: var(--red); }
+  .card.red    { border-color: var(--red-b); background: var(--red-bg); }
+
+  .card .card-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card .card-snippet {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card .card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+  }
+
+  .card .score-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+
+  .score-badge.green  { background: var(--green-b); color: var(--green); }
+  .score-badge.yellow { background: var(--yellow-b); color: var(--yellow); }
+  .score-badge.red    { background: var(--red-b); color: var(--red); }
+
+  /* ── Card accordion ───────────────────────────────────────────── */
+  .card-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s;
+  }
+
+  .card-toggle:hover { color: var(--text); }
+
+  .card-toggle .chevron {
+    display: inline-block;
+    transition: transform 0.2s;
+    font-style: normal;
+  }
+
+  .card-accordion {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .card-accordion.open { max-height: 400px; }
+
+  .card-accordion-body {
+    margin-top: 10px;
+    padding: 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.65;
+    color: var(--text-dim);
+    overflow-y: auto;
+    max-height: 300px;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+  }
+
+  /* ── Panels (Rot Detail + Generation) ─────────────────────────── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+
+  .overlay.open { display: flex; align-items: center; justify-content: center; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    max-width: 900px;
+    width: 92vw;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    position: relative;
+  }
+
+  .panel-close {
+    position: absolute;
+    top: 16px; right: 18px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 10;
+  }
+
+  .panel-close:hover { color: var(--text); }
+
+  .panel h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .panel .panel-subtitle {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    margin-bottom: 20px;
+  }
+
+  /* Rot detail */
+  .rot-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .rot-score-circle {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .rot-score-circle.green  { background: var(--green-bg); color: var(--green); border: 2px solid var(--green-b); }
+  .rot-score-circle.yellow { background: var(--yellow-bg); color: var(--yellow); border: 2px solid var(--yellow-b); }
+  .rot-score-circle.red    { background: var(--red-bg); color: var(--red); border: 2px solid var(--red-b); }
+
+  .rot-info h3 { font-size: 0.95rem; margin-bottom: 4px; }
+  .rot-info p  { font-size: 0.8rem; color: var(--text-dim); }
+
+  .issues-list {
+    list-style: none;
+    margin-bottom: 20px;
+  }
+
+  .issues-list li {
+    padding: 10px 14px;
+    background: var(--red-bg);
+    border-left: 3px solid var(--red);
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 8px;
+    font-size: 0.83rem;
+    color: var(--text);
+  }
+
+  .issues-list.clean li {
+    background: var(--green-bg);
+    border-left-color: var(--green);
+  }
+
+  .rot-action {
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 0.83rem;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  .rot-action strong { color: var(--text); }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-primary { background: var(--accent-g); color: #fff; }
+  .btn-ghost  { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Side-by-side */
+  .side-by-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .side-col h4 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .side-col .article-text {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 0.83rem;
+    line-height: 1.7;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .side-col .article-text.red-border   { border-color: var(--red-b); }
+  .side-col .article-text.green-border { border-color: var(--green-b); }
+
+  /* ── Generate Bar (bottom) ────────────────────────────────────── */
+  .generate-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 32px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .generate-bar label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--text-dim);
+  }
+
+  .generate-bar input {
+    flex: 1;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .generate-bar input:focus { border-color: var(--accent); }
+  .generate-bar input::placeholder { color: var(--text-dim); }
+
+  /* ── Loading spinner ──────────────────────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    padding: 40px 0;
+    justify-content: center;
+  }
+
+  /* ── Responsive ───────────────────────────────────────────────── */
+  @media (max-width: 700px) {
+    .app { padding: 16px; }
+    .side-by-side { grid-template-columns: 1fr; }
+    .generate-bar { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <h1>DocRay</h1>
+      <span class="subtitle">Knowledge Rot Detector &amp; Content Generator</span>
+    </div>
+    <div class="stats" id="stats">
+      <span><span class="dot green"></span> <span id="stat-green">0</span> Healthy</span>
+      <span><span class="dot yellow"></span> <span id="stat-yellow">0</span> Warning</span>
+      <span><span class="dot red"></span> <span id="stat-red">0</span> Stale</span>
+      <span><span class="dot gray"></span> <span id="stat-unscanned">0</span> Unscanned</span>
+    </div>
+  </header>
+
+  <!-- Scan bar -->
+  <div class="scan-bar">
+    <button id="scan-btn" onclick="scanAll()">Scan All Articles</button>
+    <div class="scan-progress"><div class="scan-progress-fill" id="scan-fill"></div></div>
+    <span class="scan-status" id="scan-status">Ready to scan</span>
+  </div>
+
+  <!-- Dashboard -->
+  <h3 class="section-title">Document Dashboard</h3>
+  <div class="card-grid" id="card-grid"></div>
+
+</div>
+
+<!-- Generate bar -->
+<div class="generate-bar">
+  <label for="gen-input">Generate new article about</label>
+  <input type="text" id="gen-input" placeholder="e.g. NBA draft prospect rankings 2026" />
+  <button class="btn btn-primary" id="gen-btn" onclick="generateNew()">Generate</button>
+</div>
+
+<!-- Rot Score Detail Overlay -->
+<div class="overlay" id="rot-overlay">
+  <div class="panel" id="rot-panel">
+    <button class="panel-close" onclick="closePanel('rot-overlay')">&times;</button>
+    <div id="rot-content"></div>
+  </div>
+</div>
+
+<!-- Generation Result Overlay -->
+<div class="overlay" id="gen-overlay">
+  <div class="panel" id="gen-panel" style="max-width:1050px;">
+    <button class="panel-close" onclick="closePanel('gen-overlay')">&times;</button>
+    <div id="gen-content"></div>
+  </div>
+</div>
+
+<script>
+const API = '';  // same origin
+let articles = [];
+let gridOrder = [];  // locked after first render — cards never move
+
+// ── Load articles ──────────────────────────────────────────────
+async function loadArticles() {
+  const res = await fetch(`${API}/api/articles`);
+  articles = await res.json();
+  // Sort once on load: red first, yellow, unscanned, green last
+  const order = { red: 0, yellow: 1, undefined: 2, green: 3 };
+  gridOrder = [...articles].sort((a, b) =>
+    (order[a.rot?.risk_level] ?? 2) - (order[b.rot?.risk_level] ?? 2)
+  );
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  let g = 0, y = 0, r = 0, u = 0;
+
+  for (const a of gridOrder) {
+    const level = a.rot?.risk_level;
+    if (level === 'green') g++;
+    else if (level === 'yellow') y++;
+    else if (level === 'red') r++;
+    else u++;
+    grid.appendChild(buildCard(a));
+  }
+
+  updateStatCounts(g, y, r, u);
+}
+
+function buildCard(a) {
+  const level = a.rot?.risk_level;
+  const card = document.createElement('div');
+  card.className = `card ${level || ''}`;
+  card.dataset.id = a.id;
+
+  card.innerHTML = `
+    <div class="card-status"></div>
+    <div class="card-title">${esc(a.title)}</div>
+    <div class="card-snippet">${esc(a.content)}</div>
+    <div class="card-meta">
+      <span>${formatDate(a.date)}</span>
+      <span class="card-badge">${a.rot ? `<span class="score-badge ${level}">${a.rot.rot_score}</span>` : '<span style="color:var(--text-dim)">--</span>'}</span>
+    </div>
+  `;
+
+  // Only the non-toggle area opens the audit panel
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.card-toggle') || e.target.closest('.card-accordion')) return;
+    openArticle(a);
+  });
+
+  return card;
+}
+
+// Update a single card's color + badge in-place (no re-sort)
+function updateCard(articleId) {
+  const a = articles.find(x => x.id === articleId);
+  if (!a) return;
+  const card = document.querySelector(`.card[data-id="${articleId}"]`);
+  if (!card) return;
+
+  const level = a.rot?.risk_level;
+  card.className = `card ${level || ''}`;
+  const badgeEl = card.querySelector('.card-badge');
+  if (badgeEl) {
+    badgeEl.innerHTML = a.rot
+      ? `<span class="score-badge ${level}">${a.rot.rot_score}</span>`
+      : '<span style="color:var(--text-dim)">--</span>';
+  }
+
+  // Update header stats
+  let g = 0, y = 0, r = 0, u = 0;
+  for (const x of articles) {
+    const l = x.rot?.risk_level;
+    if (l === 'green') g++;
+    else if (l === 'yellow') y++;
+    else if (l === 'red') r++;
+    else u++;
+  }
+  updateStatCounts(g, y, r, u);
+}
+
+function updateStatCounts(g, y, r, u) {
+  document.getElementById('stat-green').textContent = g;
+  document.getElementById('stat-yellow').textContent = y;
+  document.getElementById('stat-red').textContent = r;
+  document.getElementById('stat-unscanned').textContent = u;
+}
+
+// ── Accordion ─────────────────────────────────────────────────
+function toggleAccordion(event, id) {
+  event.stopPropagation();
+  const acc = document.getElementById(`accordion-${id}`);
+  const chevron = document.getElementById(`chevron-${id}`);
+  if (!acc) return;
+  const isOpen = acc.classList.toggle('open');
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+}
+
+// ── Scan all articles ──────────────────────────────────────────
+let scanning = false;
+
+async function scanAll() {
+  if (scanning) return;
+  scanning = true;
+  const btn = document.getElementById('scan-btn');
+  const fill = document.getElementById('scan-fill');
+  const status = document.getElementById('scan-status');
+  btn.disabled = true;
+  btn.textContent = 'Scanning...';
+
+  const total = articles.length;
+  let done = 0;
+
+  const batchSize = 3;
+  for (let i = 0; i < total; i += batchSize) {
+    const ids = articles.slice(i, i + batchSize).map(a => a.id);
+    try {
+      const res = await fetch(`${API}/api/rot-score/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article_ids: ids }),
+      });
+      const results = await res.json();
+      for (const [id, rot] of Object.entries(results)) {
+        const article = articles.find(a => a.id === parseInt(id));
+        if (article) {
+          article.rot = rot;
+          updateCard(article.id);  // update in-place, no re-sort
+        }
+      }
+    } catch (e) {
+      console.error('Batch scan error:', e);
+    }
+    done = Math.min(i + batchSize, total);
+    fill.style.width = `${(done / total) * 100}%`;
+    status.textContent = `${done} / ${total} scanned`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Scan All Articles';
+  status.textContent = `Done — ${total} articles scanned`;
+  scanning = false;
+}
+
+// ── Open article → rot score panel ─────────────────────────────
+async function openArticle(article) {
+  const overlay = document.getElementById('rot-overlay');
+  const content = document.getElementById('rot-content');
+
+  if (!article.rot) {
+    content.innerHTML = `
+      <h2>${esc(article.title)}</h2>
+      <p class="panel-subtitle">Scoring article for knowledge rot...</p>
+      <div class="loading-text"><span class="spinner"></span> Analyzing with AI...</div>
+    `;
+    overlay.classList.add('open');
+
+    try {
+      const res = await fetch(`${API}/api/rot-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article_id: article.id }),
+      });
+      article.rot = await res.json();
+      updateCard(article.id);  // update in-place, no re-sort
+    } catch (e) {
+      content.innerHTML = `<h2>Error</h2><p>${esc(e.message)}</p>`;
+      return;
+    }
+  } else {
+    overlay.classList.add('open');
+  }
+
+  renderRotPanel(article);
+}
+
+function renderRotPanel(article) {
+  const rot = article.rot;
+  const level = rot.risk_level;
+  const issues = rot.top_issues || [];
+  const hasIssues = issues.length > 0;
+  const corpus = article.corpus || article.content || '';
+
+  document.getElementById('rot-content').innerHTML = `
+    <h2>${esc(article.title)}</h2>
+    <p class="panel-subtitle">${formatDate(article.date)}</p>
+
+    <div class="rot-header">
+      <div class="rot-score-circle ${level}">${rot.rot_score}</div>
+      <div class="rot-info">
+        <h3>${level === 'green' ? 'Healthy' : level === 'yellow' ? 'Warning' : 'Stale — Knowledge Rot Detected'}</h3>
+        <p>Confidence: ${(rot.confidence * 100).toFixed(0)}%</p>
+      </div>
+    </div>
+
+    ${corpus ? `
+      <button class="card-toggle" style="margin-bottom:16px;" onclick="toggleAccordion(event,'panel-article')">
+        <i class="chevron" id="chevron-panel-article">▾</i> Original article
+      </button>
+      <div class="card-accordion" id="accordion-panel-article">
+        <div class="card-accordion-body">${esc(corpus)}</div>
+      </div>
+    ` : ''}
+
+    ${hasIssues ? `
+      <h4 style="font-size:0.85rem;margin-bottom:8px;color:var(--text-dim)">Flagged Issues</h4>
+      <ul class="issues-list ${level === 'green' ? 'clean' : ''}">
+        ${issues.map(issue => `<li>${esc(issue)}</li>`).join('')}
+      </ul>
+    ` : `
+      <ul class="issues-list clean">
+        <li>No issues detected — article appears current and internally consistent.</li>
+      </ul>
+    `}
+
+    <div class="rot-action">
+      <strong>Recommended Action:</strong> ${esc(rot.recommended_action || 'None')}
+    </div>
+
+    <div class="btn-row">
+      ${level !== 'green' ? `<button class="btn btn-primary" onclick="regenerateArticle(${article.id})">Regenerate Article</button>` : ''}
+      <button class="btn btn-ghost" onclick="closePanel('rot-overlay')">Close</button>
+    </div>
+  `;
+}
+
+// ── Regenerate ─────────────────────────────────────────────────
+async function regenerateArticle(articleId) {
+  closePanel('rot-overlay');
+  const overlay = document.getElementById('gen-overlay');
+  const content = document.getElementById('gen-content');
+  const article = articles.find(a => a.id === articleId);
+
+  content.innerHTML = `
+    <h2>Regenerating: ${esc(article.title)}</h2>
+    <p class="panel-subtitle">Retrieving style exemplars and generating replacement...</p>
+    <div class="loading-text"><span class="spinner"></span> This may take 15-30 seconds...</div>
+  `;
+  overlay.classList.add('open');
+
+  try {
+    const res = await fetch(`${API}/api/regenerate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ article_id: articleId }),
+    });
+    const data = await res.json();
+    renderSideBySide(article.title, data.original, data.generated, data.rot_score);
+  } catch (e) {
+    content.innerHTML = `<h2>Error</h2><p>${esc(e.message)}</p>`;
+  }
+}
+
+// ── Generate new article ───────────────────────────────────────
+async function generateNew() {
+  const input = document.getElementById('gen-input');
+  const topic = input.value.trim();
+  if (!topic) { input.focus(); return; }
+
+  const overlay = document.getElementById('gen-overlay');
+  const content = document.getElementById('gen-content');
+  const btn = document.getElementById('gen-btn');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  content.innerHTML = `
+    <h2>Generating: ${esc(topic)}</h2>
+    <p class="panel-subtitle">Retrieving style exemplars and writing article...</p>
+    <div class="loading-text"><span class="spinner"></span> This may take 15-30 seconds...</div>
+  `;
+  overlay.classList.add('open');
+
+  try {
+    const res = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic }),
+    });
+    const data = await res.json();
+    const rotLevel = data.rot_score?.risk_level || 'green';
+    content.innerHTML = `
+      <h2>${esc(topic)}</h2>
+      <p class="panel-subtitle">Generated article — Rot score:
+        <span class="score-badge ${rotLevel}" style="margin-left:6px;">${data.rot_score?.rot_score ?? '?'} ${rotLevel}</span>
+      </p>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:18px;font-size:0.85rem;line-height:1.75;white-space:pre-wrap;max-height:500px;overflow-y:auto;">${esc(data.article)}</div>
+      <div class="btn-row" style="margin-top:18px;">
+        <button class="btn btn-ghost" onclick="closePanel('gen-overlay')">Close</button>
+      </div>
+    `;
+  } catch (e) {
+    content.innerHTML = `<h2>Error</h2><p>${esc(e.message)}</p>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Generate';
+}
+
+function renderSideBySide(title, original, generated, rotScore) {
+  const level = rotScore?.risk_level || 'green';
+  document.getElementById('gen-content').innerHTML = `
+    <h2>${esc(title)}</h2>
+    <p class="panel-subtitle">Side-by-side comparison — New article rot score:
+      <span class="score-badge ${level}" style="margin-left:6px;">${rotScore?.rot_score ?? '?'} ${level}</span>
+    </p>
+    <div class="side-by-side">
+      <div class="side-col">
+        <h4>Original (Stale)</h4>
+        <div class="article-text red-border">${esc(original)}</div>
+      </div>
+      <div class="side-col">
+        <h4>Regenerated</h4>
+        <div class="article-text green-border">${esc(generated)}</div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn btn-ghost" onclick="closePanel('gen-overlay')">Close</button>
+    </div>
+  `;
+}
+
+// ── Utilities ──────────────────────────────────────────────────
+function closePanel(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Close overlays on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+  }
+});
+
+// Enter to generate
+document.getElementById('gen-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateNew();
+});
+
+// Init
+loadArticles();
+</script>
+
+</body>
+</html>
